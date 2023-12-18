@@ -5,49 +5,24 @@ from scipy.optimize import minimize_scalar
 
 class Springlock:
     # Helper variables to convert units
-    _length_unit_conversions = {
-        'm': 1.000,
-        'cm': 1.000e-2,
-        'mm': 1.000e-3,
-        'ft': 0.3048,
-        'in': 0.0254
-    }
-
-    _mass_unit_conversions = {
-        'kg': 1.000,
-        'g': 1.000e-3,
-        'lb': 0.4536,
-        'oz': 0.02835
-    }
-
-    _spring_constant_unit_conversions = {
-        'N/m': 1.000,
-        'lbf/in': 175.1
-    }
-
-    _speed_unit_conversions = {
-        'm/s': 1.000,
-        'ft/s': 0.3048,
-        'mph': 0.4470
-    }
-
-    _torque_unit_conversions = {
-        'N*m': 1.000,
-        'lbf*ft': 1.356,
-        'ozf*ft': 0.08474,
-        'lbf*in': 0.1130,
-        'ozf*in': 0.007062
-    }
-
-    _angle_unit_conversions = {
-        'rad': 1.000,
-        'deg': 0.01745
+    _unit_conversions = {
+        'length': {'m': 1.000, 'cm': 1.000e-2, 'mm': 1.000e-3, 'ft': 0.3048, 'in': 0.0254},
+        'mass': {'kg': 1.000, 'g': 1.000e-3, 'lb': 0.4536, 'oz': 0.02835},
+        'force': {'N': 1.000, 'lbf': 4.448, 'ozf': 0.2780},
+        'spring constant': {'N/m': 1.000, 'lbf/in': 175.1},
+        'speed': {'m/s': 1.000, 'ft/s': 0.3048, 'mph': 0.4470},
+        'torque': {'N*m': 1.000, 'lbf*ft': 1.356, 'ozf*ft': 0.08474, 'lbf*in': 0.1130, 'ozf*in': 0.007062},
+        'angle': {'rad': 1.000, 'deg': 0.01745},
+        'angular velocity': {'rad/s': 1.000, 'deg/s': 0.01745, 'rpm': 0.1047},
     }
 
 
-    def __init__(self, weapon_radius: np.float64, weapon_mass: np.float64, spring_radius: np.float64, spring_constant: np.float64, spring_resting_angle: np.float64, spring_mounting_point: Tuple[np.float64, np.float64],
-                 *, length_units: Literal['m', 'cm', 'mm', 'ft', 'in'] = 'm', mass_units: Literal['kg', 'g', 'lb', 'oz'] = 'kg', spring_constant_units: Literal['N/m', 'lbf/in'] = 'N/m',
-                    speed_units: Literal['m/s', 'ft/s', 'mph'] = 'm/s', torque_units: Literal['N*m', 'lbf*ft', 'ozf*ft', 'lbf*in', 'ozf*in'] = 'N*m', angle_units: Literal['rad', 'deg'] = 'rad'):
+    def __init__(self, weapon_mass: np.float64, weapon_radius: np.float64, weapon_arm_length: np.float64, weapon_arm_mass: np.float64, spring_arm_length: np.float64, 
+                    spring_arm_mass: np.float64, spring_constant: np.float64, spring_resting_length: np.float64, spring_minimum_length: np.float64,
+                 *, length_units: Literal['m', 'cm', 'mm', 'ft', 'in'] = 'm', mass_units: Literal['kg', 'g', 'lb', 'oz'] = 'kg', force_units: Literal['N', 'lbf', 'ozf'] = 'N',
+                    spring_constant_units: Literal['N/m', 'lbf/in'] = 'N/m', speed_units: Literal['m/s', 'ft/s', 'mph'] = 'm/s',
+                    torque_units: Literal['N*m', 'lbf*ft', 'ozf*ft', 'lbf*in', 'ozf*in'] = 'N*m', angle_units: Literal['rad', 'deg'] = 'rad',
+                    angular_velocity_units: Literal['rad/s', 'deg/s', 'rpm'] = 'rad/s'):
         
         """Creates a new Springlock object with the specified parameters.
 
@@ -59,269 +34,268 @@ class Springlock:
             spring_resting_angle (np.float64): The angle at which the spring when it is not under any tension or compression.
             spring_mounting_point (Tuple[np.float64, np.float64]): The x and y coordinates of the fixed mounting point of the spring, relative to the base of the arm
         """
-        
+        self._units = {}
+        self.length_units = length_units
+        self.mass_units = mass_units
+        self.force_units = force_units
+        self.spring_constant_units = spring_constant_units
+        self.speed_units = speed_units
+        self.torque_units = torque_units
+        self.angle_units = angle_units
+        self.angular_velocity_units = angular_velocity_units
 
-        self._length_scale = Springlock._length_unit_conversions[length_units]
-        self._mass_scale = Springlock._mass_unit_conversions[mass_units]
-        self._spring_constant_scale = Springlock._spring_constant_unit_conversions[spring_constant_units]
-        self._speed_scale = Springlock._speed_unit_conversions[speed_units]
-        self._torque_scale = Springlock._torque_unit_conversions[torque_units]
-        self._angle_scale = Springlock._angle_unit_conversions[angle_units]
-
-        # Class variables that will not be changed
-        self._weapon_radius = weapon_radius * self._length_scale
-        self._weapon_mass = weapon_mass * self._mass_scale
-        self._spring_radius = spring_radius * self._length_scale
-        self._spring_constant = spring_constant * self._spring_constant_scale
-        self._spring_resting_angle = spring_resting_angle * self._angle_scale
-        self._spring_mounting_point = (spring_mounting_point[0] * self._length_scale, spring_mounting_point[1] * self._length_scale)
-
-        self._length_units = length_units
-        self._mass_units = mass_units
-        self._spring_constant_units = spring_constant_units
-        self._speed_units = speed_units
-        self._torque_units = torque_units
-        self._angle_units = angle_units
+        self.weapon_mass = weapon_mass
+        self.weapon_radius = weapon_radius
+        self.weapon_arm_length = weapon_arm_length
+        self.weapon_arm_mass = weapon_arm_mass
+        self.spring_arm_length = spring_arm_length
+        self.spring_arm_mass = spring_arm_mass
+        self.spring_constant = spring_constant
+        self.spring_resting_length = spring_resting_length
+        self.spring_minimum_length = spring_minimum_length
 
         # Class variables that will be calculated and memoized as needed
-        self._max_theta = None
-        self._min_theta = None
+        self._moment_of_inertia = None
         self._max_torque_theta = None
-        self._max_spring_theta = None
-        self._min_spring_theta = None
+        self._max_radial_force_theta = None
+        self._max_angular_force_theta = None
+
 
 
     ###################################
     ###### Getter/Setter Methods ######
     ###################################
     
-    @property
-    def weapon_radius(self) -> np.float64:
-        return self._weapon_radius / self._length_scale
-    
-    @weapon_radius.setter
-    def weapon_radius(self, weapon_radius: np.float64):
-        self._weapon_radius = weapon_radius * self._length_scale
-        self._max_theta = None
-        self._min_theta = None
-        self._max_torque_theta = None
     
     @property
     def weapon_mass(self) -> np.float64:
-        return self._weapon_mass / self._mass_scale
+        return self._convert_units(self._weapon_mass, 'mass', False)
     
     @weapon_mass.setter
-    def weapon_mass(self, weapon_mass: np.float64):
-        self._weapon_mass = weapon_mass * self._mass_scale
-        self._max_theta = None
-        self._min_theta = None
-        self._max_torque_theta = None
-    
+    def weapon_mass(self, value: np.float64):
+        self._weapon_mass = self._convert_units(value, 'mass')
+        self._clear_state()
+
+
     @property
-    def spring_radius(self) -> np.float64:
-        return self._spring_radius / self._length_scale
+    def weapon_radius(self) -> np.float64:
+        return self._convert_units(self._weapon_radius, 'length', False)
     
-    @spring_radius.setter
-    def spring_radius(self, spring_radius: np.float64):
-        self._spring_radius = spring_radius * self._length_scale
-        self._max_theta = None
-        self._min_theta = None
-        self._max_torque_theta = None
+    @weapon_radius.setter
+    def weapon_radius(self, value: np.float64):
+        self._weapon_radius = self._convert_units(value, 'length')
+        self._clear_state()
+
+
+    @property
+    def weapon_arm_length(self) -> np.float64:
+        return self._convert_units(self._weapon_arm_length, 'length', False)
+
+    @weapon_arm_length.setter
+    def weapon_arm_length(self, value: np.float64):
+        self._weapon_arm_length = self._convert_units(value, 'length')
+        self._clear_state()
+
+
+    @property
+    def weapon_arm_mass(self) -> np.float64:
+        return self._convert_units(self._weapon_arm_mass, 'mass', False)
+    
+    @weapon_arm_mass.setter
+    def weapon_arm_mass(self, value: np.float64):
+        self._weapon_arm_mass = self._convert_units(value, 'mass')
+        self._clear_state()
+
+
+    @property
+    def spring_arm_length(self) -> np.float64:
+        return self._convert_units(self._spring_arm_length, 'length', False)
+    
+    @spring_arm_length.setter
+    def spring_arm_length(self, value: np.float64):
+        self._spring_arm_length = self._convert_units(value, 'length')
+        self._clear_state()
+
+
+    @property
+    def spring_arm_mass(self) -> np.float64:
+        return self._convert_units(self._spring_arm_mass, 'mass', False)
+    
+    @spring_arm_mass.setter
+    def spring_arm_mass(self, value: np.float64):
+        self._spring_arm_mass = self._convert_units(value, 'mass')
+        self._clear_state()
+
     
     @property
     def spring_constant(self) -> np.float64:
-        return self._spring_constant / self._spring_constant_scale
+        return self._convert_units(self._spring_constant, 'spring constant', False)
     
     @spring_constant.setter
-    def spring_constant(self, spring_constant: np.float64):
-        self._spring_constant = spring_constant * self._spring_constant_scale
-        self._max_theta = None
-        self._min_theta = None
-        self._max_torque_theta = None
-    
+    def spring_constant(self, value: np.float64):
+        self._spring_constant = self._convert_units(value, 'spring constant')
+        self._clear_state()
+
+
     @property
-    def spring_resting_angle(self) -> np.float64:
-        return self._spring_resting_angle / self._angle_scale
+    def spring_resting_length(self) -> np.float64:
+        return self._convert_units(self._spring_resting_length, 'length', False)
     
-    @spring_resting_angle.setter
-    def spring_resting_angle(self, spring_resting_angle: np.float64):
-        self._spring_resting_angle = spring_resting_angle * self._angle_scale
-        self._max_theta = None
-        self._min_theta = None
-        self._max_torque_theta = None
-    
+    @spring_resting_length.setter
+    def spring_resting_length(self, value: np.float64):
+        self._spring_resting_length = self._convert_units(value, 'length')
+        self._clear_state()
+
+
     @property
-    def spring_mounting_point(self) -> Tuple[np.float64, np.float64]:
-        return (self._spring_mounting_point[0] / self._length_scale, self._spring_mounting_point[1] / self._length_scale)
+    def spring_minimum_length(self) -> np.float64:
+        return self._convert_units(self._spring_minimum_length, 'length', False)
     
-    @spring_mounting_point.setter
-    def spring_mounting_point(self, spring_mounting_point: Tuple[np.float64, np.float64]):
-        self._spring_mounting_point = (spring_mounting_point[0] * self._length_scale, spring_mounting_point[1] * self._length_scale)
-        self._max_theta = None
-        self._min_theta = None
-        self._max_torque_theta = None
-    
+    @spring_minimum_length.setter
+    def spring_minimum_length(self, value: np.float64):
+        if value < self.spring_resting_length:
+            raise ValueError('Spring minimum length must be greater than or equal to the spring resting length')
+        
+        self._spring_minimum_length = self._convert_units(value, 'length')
+        self._clear_state()
+
+
+
+    ###################################
+    ###### Calculated Properties ######
+    ###################################
+
+
     @property
-    def spring_mounting_point_x(self) -> np.float64:
-        return self._spring_mounting_point[0] / self._length_scale
-    
-    @spring_mounting_point_x.setter
-    def spring_mounting_point_x(self, spring_mounting_point_x: np.float64):
-        self._spring_mounting_point = (spring_mounting_point_x * self._length_scale, self._spring_mounting_point[1])
-        self._max_theta = None
-        self._min_theta = None
-        self._max_torque_theta = None
-    
-    @property
-    def spring_mounting_point_y(self) -> np.float64:
-        return self._spring_mounting_point[1] / self._length_scale
-    
-    @spring_mounting_point_y.setter
-    def spring_mounting_point_y(self, spring_mounting_point_y: np.float64):
-        self._spring_mounting_point = (self._spring_mounting_point[0], spring_mounting_point_y * self._length_scale)
-        self._max_theta = None
-        self._min_theta = None
-        self._max_torque_theta = None
-    
-    @property
-    def tip_to_spring(self) -> np.float64:
-        return self.weapon_radius - self.spring_radius
-    
-    @property
-    def max_theta(self) -> np.float64:
-        if self._max_theta is None:
-            self._max_theta = self._calculate_max_theta()
-        return self._max_theta / self._angle_scale
-    
-    @property
-    def release_angle(self) -> np.float64:
-        return self.max_theta
-    
-    @property
-    def max_potential_energy(self) -> np.float64:
-        if self._max_theta is None:
-            self._max_theta = self._calculate_max_theta()
-        return self._total_potential_energy(self._max_theta)
-    
-    @property
-    def min_theta(self) -> np.float64:
-        if self._min_theta is None:
-            self._min_theta = self._calculate_min_theta()
-        return self._min_theta / self._angle_scale
-    
-    @property
-    def impact_angle(self) -> np.float64:
-        return self.min_theta
-    
-    @property
-    def min_potential_energy(self) -> np.float64:
-        if self._min_theta is None:
-            self._min_theta = self._calculate_min_theta()
-        return self._total_potential_energy(self._min_theta)
-    
-    @property
-    def max_speed(self) -> np.float64:
-        return (np.sqrt(2 * (self.max_potential_energy - self.min_potential_energy) / self._weapon_mass)) / self._speed_scale
+    def moment_of_inertia(self) -> np.float64:
+        if self._moment_of_inertia is None:
+            self._moment_of_inertia = self._calculate_moment_of_inertia()
+        mass_scale = self._convert_units(1, 'mass', False)
+        length_scale = self._convert_units(1, 'length', False)
+        return self._moment_of_inertia / mass_scale * length_scale**2
     
     @property
     def max_torque_theta(self) -> np.float64:
         if self._max_torque_theta is None:
             self._max_torque_theta = self._calculate_max_torque_theta()
-        return self._max_torque_theta / self._angle_scale
+        return self._convert_units(self._max_torque_theta, 'angle', False)
+    
+    @property
+    def max_radial_force_theta(self) -> np.float64:
+        if self._max_radial_force_theta is None:
+            self._max_radial_force_theta = self._calculate_max_radial_force_theta()
+        return self._convert_units(self._max_radial_force_theta, 'angle', False)
+    
+    @property
+    def max_angular_force_theta(self) -> np.float64:
+        if self._max_angular_force_theta is None:
+            self._max_angular_force_theta = self._calculate_max_angular_force_theta()
+        return self._convert_units(self._max_angular_force_theta, 'angle', False)
     
     @property
     def max_torque(self) -> np.float64:
-        if self._max_torque_theta is None:
-            self._max_torque_theta = self._calculate_max_torque_theta()
-        return np.abs(self._torque(self._max_torque_theta)) / self._torque_scale
+        return self.torque(self.max_torque_theta)
     
     @property
-    def resting_spring_length(self) -> np.float64:
-        return self._spring_length(self._spring_resting_angle) / self._length_scale
+    def max_radial_force(self) -> np.float64:
+        return self.radial_force(self.max_radial_force_theta)
     
     @property
-    def max_spring_length(self) -> np.float64:
-        if self._max_spring_theta is None:
-            self._max_spring_theta = self._calculate_max_spring_theta()
-
-        return self._spring_length(self._max_spring_theta) / self._length_scale
+    def max_angular_force(self) -> np.float64:
+        return self.angular_force(self.max_angular_force_theta)
     
     @property
-    def min_spring_length(self) -> np.float64:
-        if self._min_spring_theta is None:
-            self._min_spring_theta = self._calculate_min_spring_theta()
-
-        return self._spring_length(self._min_spring_theta) / self._length_scale
-
+    def max_tip_speed(self) -> np.float64:
+        return self.tip_speed(0)
     
 
+    
     ###################################
     ###### Unit conversion stuff ######
     ###################################
+        
 
     @property
     def length_units(self) -> Literal['m', 'cm', 'mm', 'ft', 'in']:
-        return self._length_units
+        return self._units['length']
     
     @length_units.setter
     def length_units(self, value: Literal['m', 'cm', 'mm', 'ft', 'in']):
-        self._length_units = value
-        self._length_scale = Springlock._length_unit_conversions[value]
+        self._units['length'] = value
+
 
     @property
     def mass_units(self) -> Literal['kg', 'g', 'lb', 'oz']:
-        return self._mass_units
+        return self._units['mass']
     
     @mass_units.setter
     def mass_units(self, value: Literal['kg', 'g', 'lb', 'oz']):
-        self._mass_units = value
-        self._mass_scale = Springlock._mass_unit_conversions[value]
+        self._units['mass'] = value
+
+
+    @property
+    def force_units(self) -> Literal['N', 'lbf', 'ozf']:
+        return self._units['force']
+    
+    @force_units.setter
+    def force_units(self, value: Literal['N', 'lbf', 'ozf']):
+        self._units['force'] = value
 
     @property
     def spring_constant_units(self) -> Literal['N/m', 'lbf/in']:
-        return self._spring_constant_units
+        return self._units['spring constant']
     
     @spring_constant_units.setter
     def spring_constant_units(self, value: Literal['N/m', 'lbf/in']):
-        self._spring_constant_units = value
-        self._spring_constant_scale = Springlock._spring_constant_unit_conversions[value]
+        self._units['spring constant'] = value
 
 
     @property
     def speed_units(self) -> Literal['m/s', 'ft/s', 'mph']:
-        return self._speed_units
+        return self._units['speed']
     
     @speed_units.setter
     def speed_units(self, value: Literal['m/s', 'ft/s', 'mph']):
-        self._speed_units = value
-        self._speed_scale = Springlock._speed_unit_conversions[value]
+        self._units['speed'] = value
+
 
     @property
     def torque_units(self) -> Literal['N*m', 'lbf*ft', 'ozf*ft', 'lbf*in', 'ozf*in']:
-        return self._torque_units
+        return self._units['torque']
     
     @torque_units.setter
     def torque_units(self, value: Literal['N*m', 'lbf*ft', 'ozf*ft', 'lbf*in', 'ozf*in']):
-        self._torque_units = value
-        self._torque_scale = Springlock._torque_unit_conversions[value]
+        self._units['torque'] = value
+
 
     @property
     def angle_units(self) -> Literal['rad', 'deg']:
-        return self._angle_units
+        return self._units['angle']
     
     @angle_units.setter
     def angle_units(self, value: Literal['rad', 'deg']):
-        self._angle_units = value
-        self._angle_scale = Springlock._angle_unit_conversions[value]
+        self._units['angle'] = value
+
+
+    @property
+    def angular_velocity_units(self) -> Literal['rad/s', 'deg/s', 'rpm']:
+        return self._units['angular velocity']
+    
+    @angular_velocity_units.setter
+    def angular_velocity_units(self, value: Literal['rad/s', 'deg/s', 'rpm']):
+        self._units['angular velocity'] = value
+
 
     @property
     def energy_units(self) -> Literal['J']:
         return 'J'
     
 
+
     #############################
     ###### Physics Methods ######
     #############################
+
 
     def spring_length(self, arm_angle: np.float64) -> np.float64:
         """Calculates the length of the spring at a given arm angle.
@@ -332,21 +306,17 @@ class Springlock:
         Returns:
             np.float64: The length of the spring.
         """
-        return self._spring_length(arm_angle * self._angle_scale) / self._length_scale
+        base_angle = self._convert_units(arm_angle, 'angle')
+        base_length = self._spring_length(base_angle)
+        return self._convert_units(base_length, 'length', False)
 
     def _spring_length(self, arm_angle: np.float64) -> np.float64:
-        """Calculates the length of the spring at a given arm angle.
-
-        Args:
-            arm_angle (np.float64): The angle of the arm
-
-        Returns:
-            np.float64: The length of the spring.
-        """
-        return np.sqrt((self._spring_radius * np.cos(arm_angle) - self._spring_mounting_point[0])**2 + (self._spring_radius * np.sin(arm_angle) - self._spring_mounting_point[1])**2)
+        length_a = self._spring_arm_length
+        length_b = self._spring_arm_length + self._spring_minimum_length
+        return np.sqrt(length_a**2 + length_b**2 - 2 * length_a * length_b * np.cos(arm_angle))
     
 
-    def spring_potential_energy(self, arm_angle: np.float64) -> np.float64:
+    def potential_energy(self, arm_angle: np.float64) -> np.float64:
         """Calculates the energy stored in the spring at a given arm angle.
 
         Args:
@@ -355,40 +325,12 @@ class Springlock:
         Returns:
             np.float64: The energy stored in the spring.
         """
-        return self._spring_potential_energy(arm_angle * self._angle_scale)
+        base_angle = self._convert_units(arm_angle, 'angle')
+        base_energy = self._potential_energy(base_angle)
+        return self._convert_units(base_energy, 'energy', False)
     
-    def _spring_potential_energy(self, arm_angle: np.float64) -> np.float64:
-        return 0.5 * self._spring_constant * (self._spring_length(arm_angle) - self._spring_length(self._spring_resting_angle))**2
-    
-
-    def gravitational_potential_energy(self, arm_angle: np.float64) -> np.float64:
-        """Calculates the gravitational potential energy of the weapon at a given arm angle.
-
-        Args:
-            arm_angle (np.float64): The angle of the arm
-
-        Returns:
-            np.float64: The gravitational potential energy of the weapon.
-        """
-        return self._gravitational_potential_energy(arm_angle * self._angle_scale)
-    
-    def _gravitational_potential_energy(self, arm_angle: np.float64) -> np.float64:
-        return self._weapon_mass * 9.81 * self._weapon_radius * (np.sin(arm_angle) - np.sin(self._spring_resting_angle))
-    
-
-    def total_potential_energy(self, arm_angle: np.float64) -> np.float64:
-        """Calculates the total potential energy of the system at a given arm angle.
-
-        Args:
-            arm_angle (np.float64): The angle of the arm
-
-        Returns:
-            np.float64: The total potential energy of the system.
-        """
-        return self._total_potential_energy(arm_angle * self._angle_scale)
-    
-    def _total_potential_energy(self, arm_angle: np.float64) -> np.float64:
-        return self._spring_potential_energy(arm_angle) + self._gravitational_potential_energy(arm_angle)
+    def _potential_energy(self, arm_angle: np.float64) -> np.float64:
+        return 0.5 * self._spring_constant * (self._spring_length(arm_angle) - self._spring_minimum_length)**2
     
 
     def torque(self, arm_angle: np.float64) -> np.float64:
@@ -400,12 +342,15 @@ class Springlock:
         Returns:
             np.float64: The torque on the arm.
         """
-        return self._torque(arm_angle * self._angle_scale) / self._torque_scale
+        base_angle = self._convert_units(arm_angle, 'angle')
+        base_torque = self._torque(base_angle)
+        return self._convert_units(base_torque, 'torque', False)
     
     def _torque(self, arm_angle: np.float64) -> np.float64:
-        spring_torque = self._spring_constant * self._spring_radius * (self._spring_mounting_point[0] * np.sin(arm_angle) - self._spring_mounting_point[1] * np.cos(arm_angle)) * (self._spring_length(arm_angle) - self._spring_length(self._spring_resting_angle)) / self._spring_length(arm_angle)
-        gravity_torque = self._weapon_mass * 9.81 * self._weapon_radius * np.cos(arm_angle)
-        return -(spring_torque + gravity_torque)
+        leg_a = self._spring_arm_length
+        leg_b = self._spring_arm_length + self._spring_minimum_length
+        spring_extension = self._spring_length(arm_angle) - self._spring_resting_length
+        return -self._spring_constant * leg_a * leg_b * np.sin(arm_angle) * spring_extension / self._spring_length(arm_angle)
     
 
     def angular_velocity(self, arm_angle: np.float64) -> np.float64:
@@ -417,19 +362,21 @@ class Springlock:
         Returns:
             np.float64: The angular velocity of the arm.
         """
-        return self._angular_velocity(arm_angle * self._angle_scale) / self._angle_scale
+        base_angle = self._convert_units(arm_angle, 'angle')
+        base_angular_velocity = self._angular_velocity(base_angle)
+        return self._convert_units(base_angular_velocity, 'angular velocity', False)
     
     def _angular_velocity(self, arm_angle: np.float64) -> np.float64:
-        if self._max_theta is None:
-            self._max_theta = self._calculate_max_theta()
+        if self._moment_of_inertia is None:
+            self._moment_of_inertia = self._calculate_moment_of_inertia()
 
-        max_energy = self._total_potential_energy(self._max_theta)
-        current_energy = self._total_potential_energy(arm_angle)
+        max_energy = self._potential_energy(np.pi)
+        current_energy = self._potential_energy(arm_angle)
 
-        return np.sqrt(2 * (max_energy - current_energy) / (self._weapon_mass * self._weapon_radius**2))
+        return np.sqrt(2 * (max_energy - current_energy) / self._moment_of_inertia)
     
     
-    def speed(self, arm_angle: np.float64) -> np.float64:
+    def tip_speed(self, arm_angle: np.float64) -> np.float64:
         """Calculates the speed of the tip of the arm at a given arm angle when released from the maximum potential energy position.
 
         Args:
@@ -438,16 +385,53 @@ class Springlock:
         Returns:
             np.float64: The velocity of the arm.
         """
-        return self._speed(arm_angle * self._angle_scale) / self._speed_scale
+        base_angle = self._convert_units(arm_angle, 'angle')
+        base_speed = self._tip_speed(base_angle)
+        return self._convert_units(base_speed, 'speed', False)
     
-    def _speed(self, arm_angle: np.float64) -> np.float64:
-        if self._max_theta is None:
-            self._max_theta = self._calculate_max_theta()
+    def _tip_speed(self, arm_angle: np.float64) -> np.float64:
+        return self._angular_velocity(arm_angle) * self._weapon_arm_length
+    
 
-        max_energy = self._total_potential_energy(self._max_theta)
-        current_energy = self._total_potential_energy(arm_angle)
+    def radial_force(self, arm_angle: np.float64) -> np.float64:
+        """Calculates the radial force on the arm at a given arm angle.
 
-        return np.sqrt(2 * (max_energy - current_energy) / self._weapon_mass)
+        Args:
+            arm_angle (np.float64): The angle of the arm
+
+        Returns:
+            np.float64: The radial force on the arm.
+        """
+        base_angle = self._convert_units(arm_angle, 'angle')
+        base_radial_force = self._radial_force(base_angle)
+        return self._convert_units(base_radial_force, 'force', False)
+    
+    def _radial_force(self, arm_angle: np.float64) -> np.float64:
+        leg_a = self._spring_arm_length
+        leg_b = self._spring_length(arm_angle)
+        leg_c = self._spring_arm_length + self._spring_minimum_length
+        spring_extension = self._spring_length(arm_angle) - self._spring_resting_length
+        return self._spring_constant * spring_extension * (leg_c**2 - leg_a**2 - leg_b**2) / (2 * leg_a * leg_b)
+    
+
+    def angular_force(self, arm_angle: np.float64) -> np.float64:
+        """Calculates the angular force on the arm at a given arm angle.
+
+        Args:
+            arm_angle (np.float64): The angle of the arm
+
+        Returns:
+            np.float64: The angular force on the arm.
+        """
+        base_angle = self._convert_units(arm_angle, 'angle')
+        base_angular_force = self._angular_force(base_angle)
+        return self._convert_units(base_angular_force, 'force', False)
+    
+    def _angular_force(self, arm_angle: np.float64) -> np.float64:
+        leg = self._spring_arm_length + self._spring_minimum_length
+        spring_extension = self._spring_length(arm_angle) - self._spring_resting_length
+        return -self._spring_constant * leg * np.sin(arm_angle) * spring_extension / self._spring_length(arm_angle)
+
 
 
     ############################
@@ -455,98 +439,68 @@ class Springlock:
     ############################
 
 
-    def _calculate_max_theta(self) -> np.float64:
-        """Calculates the angle of the arm at which the total potential energy of the system is maximized.
+    def _convert_units(self, value: np.float64, unit_type: Literal['length', 'mass', 'force', 'spring constant', 'speed', 'torque', 'angle', 'angular velocity'], to_base: bool = True) -> np.float64:
+        units_scale = Springlock._unit_conversions[unit_type][self._units[unit_type]]
+        return value * units_scale if to_base else value / units_scale
+
+
+    def _clear_state(self):
+        self._moment_of_inertia = None
+        self._max_torque_theta = None
+        self._max_radial_force_theta = None
+        self._max_angular_force_theta = None
+
+    def _calculate_moment_of_inertia(self) -> np.float64:
+        """Calculates the moment of inertia of the arm.
 
         Returns:
-            np.float64: The maximum angle of the arm in radians.
+            np.float64: The moment of inertia of the arm.
         """
-        optimize_results = minimize_scalar(lambda x: -self._total_potential_energy(x), bounds=(-np.pi, 2 * np.pi), method='bounded')
+        weapon_arm_moi = 1/3 * self._weapon_arm_mass * self._weapon_arm_length**2
+        spring_arm_moi = 1/3 * self._spring_arm_mass * self._spring_arm_length**2
+        weapon_moi = 1/2 * self._weapon_mass * self._weapon_radius**2 + self._weapon_mass * self._weapon_arm_length**2
 
-        if optimize_results.success:
-            return optimize_results.x
-        else:
-            raise RuntimeError('Unable to find maximum potential energy of springlock system')
-    
-
-    def _calculate_min_theta(self) -> np.float64:
-        """Calculates the angle of the arm at which the total potential energy of the system is minimized.
-
-        Returns:
-            np.float64: The minimum angle of the arm in radians.
-        """
-        optimize_results = minimize_scalar(lambda x: self._total_potential_energy(x), bounds=(-2 * np.pi, np.pi), method='bounded')
-
-        if optimize_results.success:
-            return optimize_results.x
-        else:
-            raise RuntimeError('Unable to find minimum potential energy of springlock system')
+        return weapon_arm_moi + spring_arm_moi + weapon_moi
 
 
-    def _calculate_max_torque_theta(self) -> np.float64:
+    def _calculate_max_torque_theta(self):
         """Calculates the maximum torque on the arm.
 
         Returns:
             np.float64: The maximum torque on the arm.
-        """
-
-        if self._min_theta is None:
-            self._min_theta = self._calculate_min_theta()
-        if self._max_theta is None:
-            self._max_theta = self._calculate_max_theta()
-
-        lower_bound = min(self._min_theta, self._max_theta)
-        upper_bound = max(self._min_theta, self._max_theta)
-            
-        optimize_results = minimize_scalar(lambda x: self._torque(x), bounds=(lower_bound, upper_bound), method='bounded')
+        """            
+        optimize_results = minimize_scalar(lambda x: -abs(self._torque(x)), bounds=(0, np.pi), method='bounded')
 
         if optimize_results.success:
             return optimize_results.x
         else:
             raise RuntimeError('Unable to find maximum torque of springlock system')
+        
 
-
-    def _calculate_max_spring_theta(self) -> np.float64:
-        """Calculates the angle of the arm at which the spring is at maximum extension.
+    def _calculate_max_radial_force_theta(self):
+        """Calculates the maximum radial force on the arm.
 
         Returns:
-            np.float64: The angle of the arm at which the spring is at maximum extension.
-        """
-
-        if self._min_theta is None:
-            self._min_theta = self._calculate_min_theta()
-        if self._max_theta is None:
-            self._max_theta = self._calculate_max_theta()
-
-        lower_bound = min(self._min_theta, self._max_theta)
-        upper_bound = max(self._min_theta, self._max_theta)
-
-        optimize_results = minimize_scalar(lambda x: self._spring_length(x), bounds=(lower_bound, upper_bound), method='bounded')
+            np.float64: The maximum radial force on the arm.
+        """            
+        optimize_results = minimize_scalar(lambda x: -abs(self._radial_force(x)), bounds=(0, np.pi), method='bounded')
 
         if optimize_results.success:
             return optimize_results.x
         else:
-            raise RuntimeError('Unable to find maximum extension of springlock system')
+            raise RuntimeError('Unable to find maximum radial force of springlock system')
         
-        
-    def _calculate_min_spring_theta(self) -> np.float64:
-        """Calculates the angle of the arm at which the spring is at maximum compression.
+
+    def _calculate_max_angular_force_theta(self):
+        """Calculates the maximum angular force on the arm.
 
         Returns:
-            np.float64: The angle of the arm at which the spring is at maximum compression.
-        """
-
-        if self._min_theta is None:
-            self._min_theta = self._calculate_min_theta()
-        if self._max_theta is None:
-            self._max_theta = self._calculate_max_theta()
-
-        lower_bound = min(self._min_theta, self._max_theta)
-        upper_bound = max(self._min_theta, self._max_theta)
-
-        optimize_results = minimize_scalar(lambda x: -self._spring_length(x), bounds=(lower_bound, upper_bound), method='bounded')
+            np.float64: The maximum angular force on the arm.
+        """            
+        optimize_results = minimize_scalar(lambda x: -abs(self._angular_force(x)), bounds=(0, np.pi), method='bounded')
 
         if optimize_results.success:
             return optimize_results.x
         else:
-            raise RuntimeError('Unable to find minimum extension of springlock system')
+            raise RuntimeError('Unable to find maximum angular force of springlock system')
+
