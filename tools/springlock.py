@@ -9,20 +9,21 @@ class Springlock:
         'length': {'m': 1.000, 'cm': 1.000e-2, 'mm': 1.000e-3, 'ft': 0.3048, 'in': 0.0254},
         'mass': {'kg': 1.000, 'g': 1.000e-3, 'lb': 0.4536, 'oz': 0.02835},
         'force': {'N': 1.000, 'lbf': 4.448, 'ozf': 0.2780},
-        'spring constant': {'N/m': 1.000, 'lbf/in': 175.1},
+        'spring constant': {'N/m': 1.000, 'lbf/in': 175.1, 'N/mm': 1.000e3, 'lbf/ft': 14.59},
         'speed': {'m/s': 1.000, 'ft/s': 0.3048, 'mph': 0.4470},
         'torque': {'N*m': 1.000, 'lbf*ft': 1.356, 'ozf*ft': 0.08474, 'lbf*in': 0.1130, 'ozf*in': 0.007062},
         'angle': {'rad': 1.000, 'deg': 0.01745},
         'angular velocity': {'rad/s': 1.000, 'deg/s': 0.01745, 'rpm': 0.1047},
+        'energy': {'J': 1.000}
     }
 
 
     def __init__(self, weapon_mass: np.float64, weapon_radius: np.float64, weapon_arm_length: np.float64, weapon_arm_mass: np.float64, spring_arm_length: np.float64, 
-                    spring_arm_mass: np.float64, spring_constant: np.float64, spring_resting_length: np.float64, spring_minimum_length: np.float64,
+                    spring_arm_mass: np.float64, spring_constant: np.float64, spring_resting_length: np.float64, spring_stroke_length: np.float64,
                  *, length_units: Literal['m', 'cm', 'mm', 'ft', 'in'] = 'm', mass_units: Literal['kg', 'g', 'lb', 'oz'] = 'kg', force_units: Literal['N', 'lbf', 'ozf'] = 'N',
-                    spring_constant_units: Literal['N/m', 'lbf/in'] = 'N/m', speed_units: Literal['m/s', 'ft/s', 'mph'] = 'm/s',
+                    spring_constant_units: Literal['N/m', 'lbf/in', 'N/mm', 'lbf/ft'] = 'N/m', speed_units: Literal['m/s', 'ft/s', 'mph'] = 'm/s',
                     torque_units: Literal['N*m', 'lbf*ft', 'ozf*ft', 'lbf*in', 'ozf*in'] = 'N*m', angle_units: Literal['rad', 'deg'] = 'rad',
-                    angular_velocity_units: Literal['rad/s', 'deg/s', 'rpm'] = 'rad/s'):
+                    angular_velocity_units: Literal['rad/s', 'deg/s', 'rpm'] = 'rad/s', energy_units: Literal['J'] = 'J'):
         
         """Creates a new Springlock object with the specified parameters.
 
@@ -43,6 +44,7 @@ class Springlock:
         self.torque_units = torque_units
         self.angle_units = angle_units
         self.angular_velocity_units = angular_velocity_units
+        self.energy_units = energy_units
 
         self.weapon_mass = weapon_mass
         self.weapon_radius = weapon_radius
@@ -52,7 +54,7 @@ class Springlock:
         self.spring_arm_mass = spring_arm_mass
         self.spring_constant = spring_constant
         self.spring_resting_length = spring_resting_length
-        self.spring_minimum_length = spring_minimum_length
+        self.spring_stroke_length = spring_stroke_length
 
         # Class variables that will be calculated and memoized as needed
         self._moment_of_inertia = None
@@ -148,15 +150,15 @@ class Springlock:
 
 
     @property
-    def spring_minimum_length(self) -> np.float64:
-        return self._convert_units(self._spring_minimum_length, 'length', False)
+    def spring_stroke_length(self) -> np.float64:
+        return self._convert_units(self._spring_stroke_length, 'length', False)
     
-    @spring_minimum_length.setter
-    def spring_minimum_length(self, value: np.float64):
-        if value < self.spring_resting_length:
-            raise ValueError('Spring minimum length must be greater than or equal to the spring resting length')
+    @spring_stroke_length.setter
+    def spring_stroke_length(self, value: np.float64):     
+        if self._convert_units(value, 'length') < self._spring_arm_length * 2:
+            raise ValueError('Spring stroke length must be greater than twice the spring arm length')
         
-        self._spring_minimum_length = self._convert_units(value, 'length')
+        self._spring_stroke_length = self._convert_units(value, 'length')
         self._clear_state()
 
 
@@ -242,11 +244,11 @@ class Springlock:
         self._units['force'] = value
 
     @property
-    def spring_constant_units(self) -> Literal['N/m', 'lbf/in']:
+    def spring_constant_units(self) -> Literal['N/m', 'lbf/in', 'N/mm', 'lbf/ft']:
         return self._units['spring constant']
     
     @spring_constant_units.setter
-    def spring_constant_units(self, value: Literal['N/m', 'lbf/in']):
+    def spring_constant_units(self, value: Literal['N/m', 'lbf/in', 'N/mm', 'lbf/ft']):
         self._units['spring constant'] = value
 
 
@@ -289,6 +291,10 @@ class Springlock:
     @property
     def energy_units(self) -> Literal['J']:
         return 'J'
+    
+    @energy_units.setter
+    def energy_units(self, value: Literal['J']):
+        self._units['energy'] = value
     
 
 
