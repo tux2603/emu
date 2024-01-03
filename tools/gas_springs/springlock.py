@@ -17,7 +17,8 @@ class AbstractSpringlock:
         'energy': {'J': 1.000, 'N*m': 1.000, 'lbf*ft': 1.356, 'ozf*ft': 0.08474, 'lbf*in': 0.1130, 'ozf*in': 0.007062},
         'pressure': {'N/m^2': 1.000, 'Pa': 1.000, 'lbf/in^2': 6.895e3, 'psi': 6.895e3, 'bar': 1.000e5, 'atm': 1.013e5, 'MPa': 1.000e6},
         'area': {'m^2': 1.000, 'cm^2': 1.000e-4, 'mm^2': 1.000e-6, 'ft^2': 0.09290, 'in^2': 6.452e-4},
-        'volume': {'m^3': 1.000, 'cm^3': 1.000e-6, 'mm^3': 1.000e-9, 'ft^3': 2.832e-2, 'in^3': 1.638e-5, 'l': 1.000e-3, 'ml': 1.000e-6}
+        'volume': {'m^3': 1.000, 'cm^3': 1.000e-6, 'mm^3': 1.000e-9, 'ft^3': 2.832e-2, 'in^3': 1.638e-5, 'l': 1.000e-3, 'ml': 1.000e-6},
+        'power': {'W': 1.000}
     }
 
     _unit_types = {
@@ -32,7 +33,8 @@ class AbstractSpringlock:
         'energy': Literal['J', 'N*m', 'lbf*ft', 'ozf*ft', 'lbf*in', 'ozf*in'],
         'pressure': Literal['N/m^2', 'Pa', 'lbf/in^2', 'psi', 'bar', 'atm', 'MPa'],
         'area': Literal['m^2', 'cm^2', 'mm^2', 'ft^2', 'in^2'],
-        'volume': Literal['m^3', 'cm^3', 'mm^3', 'ft^3', 'in^3', 'l', 'ml']
+        'volume': Literal['m^3', 'cm^3', 'mm^3', 'ft^3', 'in^3', 'l', 'ml'],
+        'power': Literal['W']
     }
 
     def __init__(self, name: str,
@@ -40,7 +42,8 @@ class AbstractSpringlock:
                  *, length_units: _unit_types['length'] = 'm', mass_units: _unit_types['mass'] = 'kg', force_units: _unit_types['force'] = 'N',
                     spring_constant_units: _unit_types['spring constant'] = 'N/m', speed_units: _unit_types['speed'] = 'm/s', torque_units: _unit_types['torque'] = 'N*m',
                     angle_units: _unit_types['angle'] = 'rad', angular_velocity_units: _unit_types['angular velocity'] = 'rad/s', energy_units: _unit_types['energy'] = 'J',
-                    pressure_units:_unit_types['pressure'] = 'N/m^2', area_units: _unit_types['area'] = 'm^2', volume_units: _unit_types['volume'] = 'm^3'):
+                    pressure_units:_unit_types['pressure'] = 'N/m^2', area_units: _unit_types['area'] = 'm^2', volume_units: _unit_types['volume'] = 'm^3',
+                    power_units: _unit_types['power'] = 'W'):
         
         self.name = name
 
@@ -57,6 +60,7 @@ class AbstractSpringlock:
         self.pressure_units = pressure_units
         self.area_units = area_units
         self.volume_units = volume_units
+        self.power_units = power_units
 
         self.weapon_mass = weapon_mass
         self.weapon_radius = weapon_radius
@@ -71,6 +75,7 @@ class AbstractSpringlock:
         self._max_radial_force_theta = None
         self._max_tangential_force_theta = None
         self._max_spring_speed_theta = None
+        self._max_power_theta = None
 
 
     ###################################
@@ -170,85 +175,93 @@ class AbstractSpringlock:
         self._units['force'] = value
 
     @property
-    def spring_constant_units(self) -> Literal['N/m', 'lbf/in', 'N/mm', 'lbf/ft']:
+    def spring_constant_units(self) -> _unit_types['spring constant']:
         return self._units['spring constant']
     
     @spring_constant_units.setter
-    def spring_constant_units(self, value: Literal['N/m', 'lbf/in', 'N/mm', 'lbf/ft']):
+    def spring_constant_units(self, value: _unit_types['spring constant']):
         self._units['spring constant'] = value
 
 
     @property
-    def speed_units(self) -> Literal['m/s', 'ft/s', 'mph']:
+    def speed_units(self) -> _unit_types['speed']:
         return self._units['speed']
     
     @speed_units.setter
-    def speed_units(self, value: Literal['m/s', 'ft/s', 'mph']):
+    def speed_units(self, value: _unit_types['speed']):
         self._units['speed'] = value
 
 
     @property
-    def torque_units(self) -> Literal['N*m', 'lbf*ft', 'ozf*ft', 'lbf*in', 'ozf*in']:
+    def torque_units(self) -> _unit_types['torque']:
         return self._units['torque']
     
     @torque_units.setter
-    def torque_units(self, value: Literal['N*m', 'lbf*ft', 'ozf*ft', 'lbf*in', 'ozf*in']):
+    def torque_units(self, value: _unit_types['torque']):
         self._units['torque'] = value
 
 
     @property
-    def angle_units(self) -> Literal['rad', 'deg']:
+    def angle_units(self) -> _unit_types['angle']:
         return self._units['angle']
     
     @angle_units.setter
-    def angle_units(self, value: Literal['rad', 'deg']):
+    def angle_units(self, value: _unit_types['angle']):
         self._units['angle'] = value
 
 
     @property
-    def angular_velocity_units(self) -> Literal['rad/s', 'deg/s', 'rpm']:
+    def angular_velocity_units(self) -> _unit_types['angular velocity']:
         return self._units['angular velocity']
     
     @angular_velocity_units.setter
-    def angular_velocity_units(self, value: Literal['rad/s', 'deg/s', 'rpm']):
+    def angular_velocity_units(self, value: _unit_types['angular velocity']):
         self._units['angular velocity'] = value
 
 
     @property
-    def energy_units(self) -> Literal['J']:
+    def energy_units(self) -> _unit_types['energy']:
         return 'J'
     
     @energy_units.setter
-    def energy_units(self, value: Literal['J']):
+    def energy_units(self, value: _unit_types['energy']):
         self._units['energy'] = value
 
 
     @property
-    def pressure_units(self) -> Literal['N/m^2', 'Pa', 'lbf/in^2', 'psi', 'bar', 'atm', 'MPa']:
+    def pressure_units(self) -> _unit_types['pressure']:
         return self._units['pressure']
     
     @pressure_units.setter
-    def pressure_units(self, value: Literal['N/m^2', 'Pa', 'lbf/in^2', 'psi', 'bar', 'atm', 'MPa']):
+    def pressure_units(self, value: _unit_types['pressure']):
         self._units['pressure'] = value
 
 
     @property
-    def area_units(self) -> Literal['m^2', 'cm^2', 'mm^2', 'ft^2', 'in^2']:
+    def area_units(self) -> _unit_types['area']:
         return self._units['area']
     
     @area_units.setter
-    def area_units(self, value: Literal['m^2', 'cm^2', 'mm^2', 'ft^2', 'in^2']):
+    def area_units(self, value: _unit_types['area']):
         self._units['area'] = value
 
     
     @property
-    def volume_units(self) -> Literal['m^3', 'cm^3', 'mm^3', 'ft^3', 'in^3', 'l', 'ml']:
+    def volume_units(self) -> _unit_types['volume']:
         return self._units['volume']
     
     @volume_units.setter
-    def volume_units(self, value: Literal['m^3', 'cm^3', 'mm^3', 'ft^3', 'in^3', 'l', 'ml']):
+    def volume_units(self, value: _unit_types['volume']):
         self._units['volume'] = value
 
+
+    @property
+    def power_units(self) -> _unit_types['power']:
+        return self._units['power']
+    
+    @power_units.setter
+    def power_units(self, value: _unit_types['power']):
+        self._units['power'] = value
 
 
     ###################################
@@ -287,6 +300,12 @@ class AbstractSpringlock:
         if self._max_spring_speed_theta is None:
             self._max_spring_speed_theta = self._calculate_max_spring_speed_theta()
         return self._convert_units(self._max_spring_speed_theta, 'angle', False)
+
+    @property
+    def max_power_theta(self) -> np.float64:
+        if self._max_power_theta is None:
+            self._max_power_theta = self._calculate_max_power_theta()
+        return self._convert_units(self._max_power_theta, 'angle', False)
     
     @property
     def max_torque(self) -> np.float64:
@@ -304,6 +323,10 @@ class AbstractSpringlock:
     def max_spring_speed(self) -> np.float64:
         return self.spring_speed(self.max_spring_speed_theta)
     
+    @property
+    def max_power(self) -> np.float64:
+        return self.instantaneous_power(self.max_power_theta)
+    
 
     @property
     def max_tip_speed(self) -> np.float64:
@@ -316,6 +339,8 @@ class AbstractSpringlock:
     @property
     def _max_potential_energy(self) -> np.float64:
         return self._potential_energy(np.pi) - self._potential_energy(0)
+    
+
     
     
 
@@ -468,13 +493,29 @@ class AbstractSpringlock:
         raise NotImplementedError()
     
 
+    def instantaneous_power(self, arm_angle: np.float64) -> np.float64:
+        """Calculates the instantaneous power output of the springlock at a given arm angle.
+
+        Args:
+            arm_angle (np.float64): The angle of the arm
+
+        Returns:
+            np.float64: The instantaneous power of the springlock.
+        """
+        base_angle = self._convert_units(arm_angle, 'angle')
+        base_power = self._instantaneous_power(base_angle)
+        return self._convert_units(base_power, 'power', False)
+    
+    def _instantaneous_power(self, arm_angle: np.float64) -> np.float64:
+        return self._angular_velocity(arm_angle) * self._torque(arm_angle)
+
 
     ############################
     ###### Helper Methods ######
     ############################
 
 
-    def _convert_units(self, value: np.float64, unit_type: Literal['length', 'mass', 'force', 'spring constant', 'speed', 'torque', 'angle', 'angular velocity'], to_base: bool = True) -> np.float64:
+    def _convert_units(self, value: np.float64, unit_type: str, to_base: bool = True) -> np.float64:
         units_scale = AbstractSpringlock._unit_conversions[unit_type][self._units[unit_type]]
         return value * units_scale if to_base else value / units_scale
     
@@ -552,6 +593,20 @@ class AbstractSpringlock:
             return optimize_results.x
         else:
             raise RuntimeError('Unable to find maximum spring speed of springlock system')
+        
+
+    def _calculate_max_power_theta(self):
+        """Calculates the maximum instantaneous power output of the springlock.
+
+        Returns:
+            np.float64: The maximum instantaneous power output of the springlock.
+        """            
+        optimize_results = minimize_scalar(lambda x: -abs(self._instantaneous_power(x)), bounds=(0, np.pi), method='bounded')
+
+        if optimize_results.success:
+            return optimize_results.x
+        else:
+            raise RuntimeError('Unable to find maximum power of springlock system')
 
 
 
@@ -568,7 +623,8 @@ class GasSpringlock(AbstractSpringlock):
                 *, length_units: AbstractSpringlock._unit_types['length'] = 'm', mass_units: AbstractSpringlock._unit_types['mass'] = 'kg', force_units: AbstractSpringlock._unit_types['force'] = 'N',
                     spring_constant_units: AbstractSpringlock._unit_types['spring constant'] = 'N/m', speed_units: AbstractSpringlock._unit_types['speed'] = 'm/s', torque_units: AbstractSpringlock._unit_types['torque'] = 'N*m',
                     angle_units: AbstractSpringlock._unit_types['angle'] = 'rad', angular_velocity_units: AbstractSpringlock._unit_types['angular velocity'] = 'rad/s', energy_units: AbstractSpringlock._unit_types['energy'] = 'J',
-                    pressure_units: AbstractSpringlock._unit_types['pressure'] = 'N/m^2', area_units: AbstractSpringlock._unit_types['area'] = 'm^2', volume_units: AbstractSpringlock._unit_types['volume'] = 'm^3'):
+                    pressure_units: AbstractSpringlock._unit_types['pressure'] = 'N/m^2', area_units: AbstractSpringlock._unit_types['area'] = 'm^2', volume_units: AbstractSpringlock._unit_types['volume'] = 'm^3',
+                    power_units: AbstractSpringlock._unit_types['power'] = 'W'):
         
         # Initialize the unit stuff in the base class
         super().__init__(
@@ -590,7 +646,8 @@ class GasSpringlock(AbstractSpringlock):
             energy_units=energy_units,
             pressure_units=pressure_units,
             area_units=area_units,
-            volume_units=volume_units
+            volume_units=volume_units,
+            power_units=power_units
             )
         
         self.spring_initial_length = spring_initial_length
